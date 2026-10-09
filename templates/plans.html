@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}خرید اشتراک{% endblock %}
+{% block content %}
+<h2>💎 خرید اشتراک</h2>
+{% if ok %}<div class="good">✅ رسید ثبت شد. بعد از بررسی توسط ادمین، اشتراک شما فعال می‌شود.</div>{% endif %}
+
+<div class="card">
+  <b>مراحل خرید:</b>
+  <ol>
+    <li>مبلغ پلن را به کارت زیر واریز کنید.</li>
+    <li>عکس رسید را در همان پلن آپلود کنید.</li>
+    <li>منتظر تایید ادمین بمانید.</li>
+  </ol>
+  <p>💳 شماره کارت: <b dir="ltr" style="user-select:all">{{ card_number }}</b><br>
+  👤 به نام: <b>{{ card_holder }}</b></p>
+</div>
+
+<div class="grid">
+  {% for p in plans %}
+  <div class="card">
+    <h3>{{ p.name }}</h3>
+    <p><b>{{ p.price|money }}</b> {{ currency }} / {{ p.days }} روز</p>
+    <p class="mut">💬 {{ p.chat_limit }} پیام در روز<br>🖼 {{ p.image_limit }} عکس در روز<br>🎬 {{ p.video_limit }} ویدیو در روز</p>
+    <form method="post" action="/plans/{{ p.id }}/buy" enctype="multipart/form-data">
+      <p><input type="file" name="receipt" accept="image/*" required></p>
+      <button style="width:100%">ارسال رسید</button>
+    </form>
+  </div>
+  {% else %}
+  <p class="mut">فعلاً پلنی برای فروش وجود ندارد.</p>
+  {% endfor %}
+</div>
+
+{% if payments %}
+<div class="card">
+  <h3>پرداخت‌های من</h3>
+  <table>
+    <tr><th>#</th><th>پلن</th><th>مبلغ</th><th>وضعیت</th></tr>
+    {% for p in payments %}
+    <tr><td>{{ p.id }}</td><td>{{ p.plan.name }}</td><td>{{ p.amount|money }}</td>
+    <td>{{ {'pending':'⏳ در انتظار بررسی','approved':'✅ تایید شد','rejected':'❌ رد شد'}[p.status] }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

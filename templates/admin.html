@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}مدیریت{% endblock %}
+{% block content %}
+<h2>🛠 پنل مدیریت</h2>
+
+<div class="grid">
+  <div class="card"><div class="mut">کاربران</div><h2>{{ stats.users }}</h2></div>
+  <div class="card"><div class="mut">اشتراک فعال</div><h2>{{ stats.active_paid }}</h2></div>
+  <div class="card"><div class="mut">رسید در انتظار</div><h2>{{ stats.pending }}</h2></div>
+  <div class="card"><div class="mut">درآمد تاییدشده</div><h2>{{ stats.income|money }}</h2></div>
+</div>
+
+<div class="card">
+  <h3>🧾 رسیدهای در انتظار</h3>
+  {% if pending %}
+  <table>
+    <tr><th>#</th><th>کاربر</th><th>پلن</th><th>مبلغ</th><th>رسید</th><th></th></tr>
+    {% for p in pending %}
+    <tr>
+      <td>{{ p.id }}</td><td>{{ p.user.email }}</td><td>{{ p.plan.name }}</td><td>{{ p.amount|money }}</td>
+      <td><a href="/admin/receipt/{{ p.id }}" target="_blank"><img src="/admin/receipt/{{ p.id }}" style="max-width:120px;border-radius:8px"></a></td>
+      <td class="row">
+        <form method="post" action="/admin/payment/{{ p.id }}/approve"><button class="ok">✅ تایید</button></form>
+        <form method="post" action="/admin/payment/{{ p.id }}/reject"><button class="bad">❌ رد</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="mut">رسید در انتظاری نیست ✅</p>{% endif %}
+</div>
+
+<div class="card">
+  <h3>💳 اطلاعات کارت فروشنده</h3>
+  <form method="post" action="/admin/card" class="row">
+    <input name="card_number" value="{{ card_number }}" placeholder="شماره کارت" dir="ltr" style="flex:2" required>
+    <input name="card_holder" value="{{ card_holder }}" placeholder="نام صاحب کارت" style="flex:2" required>
+    <button>ذخیره</button>
+  </form>
+</div>
+
+<div class="card" style="overflow-x:auto">
+  <h3>📋 پلن‌ها</h3>
+  <table>
+    <tr><th>#</th><th>نام</th><th>قیمت</th><th>روز</th><th>چت</th><th>عکس</th><th>ویدیو</th><th></th><th></th></tr>
+    {% for p in plans %}
+    <tr>
+      <form method="post" action="/admin/plan/{{ p.id }}/edit" id="pe{{ p.id }}"></form>
+      <td>{{ p.id }}{% if p.is_free %} 🆓{% endif %}</td>
+      <td><input form="pe{{ p.id }}" name="name" value="{{ p.name }}" required></td>
+      <td><input form="pe{{ p.id }}" name="price" type="number" min="0" value="{{ p.price }}" style="width:100px"></td>
+      <td><input form="pe{{ p.id }}" name="days" type="number" min="0" value="{{ p.days }}" style="width:70px"></td>
+      <td><input form="pe{{ p.id }}" name="chat_limit" type="number" min="0" value="{{ p.chat_limit }}" style="width:80px"></td>
+      <td><input form="pe{{ p.id }}" name="image_limit" type="number" min="0" value="{{ p.image_limit }}" style="width:70px"></td>
+      <td><input form="pe{{ p.id }}" name="video_limit" type="number" min="0" value="{{ p.video_limit }}" style="width:70px"></td>
+      <td><button form="pe{{ p.id }}">ذخیره</button></td>
+      <td>{% if not p.is_free %}
+        <form method="post" action="/admin/plan/{{ p.id }}/toggle"><button class="ghost">{{ 'غیرفعال کن' if p.active else 'فعال کن' }}</button></form>
+      {% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <h4>➕ پلن جدید</h4>
+  <form method="post" action="/admin/plan/new" class="row">
+    <input name="name" placeholder="نام" required style="width:150px">
+    <input name="price" type="number" min="0" placeholder="قیمت" required style="width:110px">
+    <input name="days" type="number" min="1" placeholder="روز" required style="width:80px">
+    <input name="chat_limit" type="number" min="0" placeholder="چت/روز" required style="width:100px">
+    <input name="image_limit" type="number" min="0" placeholder="عکس/روز" required style="width:100px">
+    <input name="video_limit" type="number" min="0" placeholder="ویدیو/روز" required style="width:100px">
+    <button>ساخت</button>
+  </form>
+</div>
+
+<div class="card" style="overflow-x:auto">
+  <h3>👥 کاربران (۱۰۰ نفر آخر)</h3>
+  <form method="post" action="/admin/user/give" class="row" style="margin-bottom:12px">
+    <input name="user_id" type="number" placeholder="ID کاربر" required style="width:120px">
+    <select name="plan_id" style="width:200px">{% for p in plans %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select>
+    <button>🎁 فعال‌سازی دستی پلن</button>
+  </form>
+  <table>
+    <tr><th>ID</th><th>ایمیل</th><th>پلن</th><th>انقضا</th><th></th></tr>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.id }}</td><td dir="ltr">{{ u.email }}</td><td>{{ u.plan.name }}</td>
+      <td>{{ u.expires_at.strftime('%Y-%m-%d') if u.expires_at else '—' }}</td>
+      <td>{% if not u.is_admin %}
+        <form method="post" action="/admin/user/{{ u.id }}/ban"><button class="ghost">{{ 'رفع مسدودی' if u.banned else 'مسدود' }}</button></form>
+      {% else %}<span class="badge">ادمین</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

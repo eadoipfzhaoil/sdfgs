@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}BnAi · استودیو{% endblock %}
+{% block content %}
+<style>
+.tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.tabs button{background:transparent;border:1px solid var(--line);color:var(--txt)}
+.tabs button.on{background:var(--acc);border-color:var(--acc)}
+.panel{display:none}.panel.on{display:block}
+#msgs{height:55vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:6px}
+.msg{max-width:85%;padding:10px 14px;border-radius:14px;white-space:pre-wrap;word-wrap:break-word}
+.msg.user{align-self:flex-start;background:var(--acc)}
+.msg.bot{align-self:flex-end;background:#232a4d}
+.item img,.item video{width:100%;border-radius:10px;display:block}
+.item p{margin:4px 0 0;font-size:.85em;color:var(--mut)}
+</style>
+
+<div class="card row">
+  <span id="usage" class="badge"></span>
+  <span class="mut">سهمیه امروز شما</span>
+  <span style="flex:1"></span>
+  <a href="/plans" class="btn">💎 افزایش سهمیه</a>
+</div>
+<div id="err" class="err" style="display:none"></div>
+
+<div class="tabs">
+  <button class="on" data-tab="chat">💬 چت</button>
+  <button data-tab="image">🖼 ساخت عکس</button>
+  <button data-tab="video">🎬 ساخت ویدیو</button>
+</div>
+
+<div class="card panel on" id="panel-chat">
+  <div id="msgs"></div>
+  <div class="row" style="margin-top:10px;align-items:flex-end">
+    <textarea id="chatin" rows="2" placeholder="پیامت را بنویس... (Enter = ارسال)" style="flex:1"></textarea>
+    <button id="chatbtn" onclick="sendChat()">ارسال</button>
+    <button class="ghost" onclick="clearChat()">🗑</button>
+  </div>
+</div>
+
+<div class="card panel" id="panel-image">
+  <textarea id="imagein" rows="3" placeholder="عکسی که می‌خواهی را توضیح بده..."></textarea>
+  <p class="row"><button id="imagebtn" onclick="gen('image')">ساخت عکس</button><span id="imagest" class="mut"></span></p>
+  <div class="grid" id="imagebox"></div>
+</div>
+
+<div class="card panel" id="panel-video">
+  <textarea id="videoin" rows="3" placeholder="ویدیویی که می‌خواهی را توضیح بده..."></textarea>
+  <p class="row"><button id="videobtn" onclick="gen('video')">ساخت ویدیو</button><span id="videost" class="mut">ساخت ویدیو چند دقیقه طول می‌کشد</span></p>
+  <div class="grid" id="videobox"></div>
+</div>
+
+<script>
+const USAGE = {{ usage|tojson }};
+const $ = s => document.querySelector(s);
+const icons = {chat: '💬', image: '🖼', video: '🎬'};
+const JSON_H = {'Content-Type': 'application/json'};
+
+function setUsage(u) {
+  $('#usage').textContent = Object.keys(icons).map(k => icons[k] + ' ' + u[k].used + '/' + u[k].limit).join('  ·  ');
+}
+function showErr(m) { const e = $('#err'); e.textContent = m; e.style.display = m ? 'block' : 'none'; }
+async function api(url, opt) {
+  const r = await fetch(url, opt);
+  let d = {};
+  try { d = await r.json(); } catch (e) {}
+  if (!r.ok) throw new Error(d.detail || 'خطا');
+  return d;
+}
+setUsage(USAGE);
+
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('on', p.id === 'panel-' + b.dataset.tab));
+  showErr('');
+});
+
+/* ---- چت ---- */
+function addMsg(role, text) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + role;
+  d.textContent = text;
+  $('#msgs').appendChild(d);
+  $('#msgs').scrollTop = 1e9;
+  return d;
+}
+async function sendChat() {
+  const i = $('#chatin'), t = i.value.trim();
+  if (!t) return;
+  i.value = ''; showErr('');
+  addMsg('user', t);
+  const w = addMsg('bot', '...');
+  $('#chatbtn').disabled = true;
+  try {
+    const d = await api('/api/chat', {method: 'POST', headers: JSON_H, body: JSON.stringify({message: t})});
+    w.textContent = d.reply; setUsage(d.usage);
+  } catch (e) { w.remove(); showErr(e.message); }
+  $('#chatbtn').disabled = false;
+}
+async function clearChat() {
+  await api('/api/chat/clear', {method: 'POST'});
+  $('#msgs').innerHTML = '';
+}
+$('#chatin').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+});
+api('/api/chat/history').then(h => h.forEach(m => addMsg(m.role === 'user' ? 'user' : 'bot', m.content)));
+
+/* ---- عکس و ویدیو ---- */
+function renderMedia(box, g, prepend) {
+  const w = document.createElement('div');
+  w.className = 'item';
+  let el;
+  if (g.kind === 'video') { el = document.createElement('video'); el.controls = true; }
+  else { el = document.createElement('img'); }
+  el.src = g.url;
+  w.appendChild(el);
+  const p = document.createElement('p');
+  p.textContent = g.prompt;
+  w.appendChild(p);
+  if (prepend) box.prepend(w); else box.appendChild(w);
+}
+async function gen(kind) {
+  const prompt = $('#' + kind + 'in').value.trim();
+  if (!prompt) return;
+  showErr('');
+  const btn = $('#' + kind + 'btn'), st = $('#' + kind + 'st');
+  btn.disabled = true; st.textContent = '⏳ در حال ساخت...';
+  try {
+    const d = await api('/api/generate', {method: 'POST', headers: JSON_H, body: JSON.stringify({kind: kind, prompt: prompt})});
+    setUsage(d.usage);
+    while (true) {
+      await new Promise(r => setTimeout(r, 3000));
+      const g = await api('/api/generation/' + d.id);
+      if (g.status === 'done') { renderMedia($('#' + kind + 'box'), g, true); break; }
+      if (g.status === 'failed') { api('/api/usage').then(setUsage); throw new Error('ساخت ناموفق بود (سهمیه شما برگردانده شد)'); }
+    }
+  } catch (e) { showErr(e.message); }
+  btn.disabled = false; st.textContent = '';
+}
+['image', 'video'].forEach(k => api('/api/generations?kind=' + k).then(list => list.forEach(g => renderMedia($('#' + k + 'box'), g, false))));
+</script>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:420px;margin:40px auto">
+  <h2>{{ 'ورود' if mode == 'login' else 'ثبت‌نام' }}</h2>
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  <form method="post" action="/{{ mode }}">
+    <p><input type="email" name="email" placeholder="ایمیل" required dir="ltr"></p>
+    <p><input type="password" name="password" placeholder="رمز عبور" required dir="ltr"></p>
+    <button style="width:100%">{{ 'ورود' if mode == 'login' else 'ساخت حساب' }}</button>
+  </form>
+  <p class="mut">
+    {% if mode == 'login' %}حساب ندارید؟ <a href="/register">ثبت‌نام</a>{% else %}حساب دارید؟ <a href="/login">ورود</a>{% endif %}
+  </p>
+</div>
+{% endblock %}
